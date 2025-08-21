@@ -34,7 +34,7 @@ export default function Landing() {
 
       {/* Why Choose EduPath */}
       <section className="px-6 py-16 bg-white text-center">
-        <h2 className="text-2xl font-bold mb-4">Why Choose EduPath?</h2>
+        <h2 className="text-2xl font-bold mb-4">Why Choose SmartSkill?</h2>
         <p className="text-gray-600 mb-10 max-w-2xl mx-auto">
           Our system uses advanced machine learning to provide accurate and personalized recommendations.
         </p>
