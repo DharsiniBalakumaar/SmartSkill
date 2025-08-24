@@ -23,7 +23,7 @@ export default function Header() {
           <Link className="text-sm font-medium" to="/contact">Contact</Link>
         </nav>
 
-     <Link to="/get-started" className="cssbuttons-io-button">
+     <Link to="/register" className="cssbuttons-io-button">
       Get started
       <div className="icon bg-blue-600">
         <svg
