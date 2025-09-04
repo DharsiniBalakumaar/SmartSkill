@@ -90,6 +90,8 @@ export default function Login() {
               />
             </div>
 
+            
+
             <button
               type="submit"
               className="w-full py-2 font-semibold text-white bg-blue-500 rounded-lg transition duration-300 hover:bg-gradient-to-r hover:from-blue-500 hover:to-indigo-500"
@@ -102,6 +104,12 @@ export default function Login() {
           {message && (
             <p className="mt-4 text-center text-sm text-red-500">{message}</p>
           )}
+
+          <div className="font-bold text-center mt-6">
+              <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+                Forgot Password?
+              </Link>
+            </div>
 
           {/* ✅ Register Link */}
           <p className="text-sm text-gray-600 mt-6 text-center">
