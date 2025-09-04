@@ -33,19 +33,19 @@ export default function ForgotPassword() {
         <h2 className="text-2xl font-bold text-center mb-6">Forgot Password</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium text-gray-700"></label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
-              className="mt-1 w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
               required
             />
           </div>
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold transition duration-300 hover:bg-gradient-to-r hover:from-blue-500 hover:to-indigo-500"
           >
             Send Reset Link
           </button>
