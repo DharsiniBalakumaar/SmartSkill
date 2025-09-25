@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 
 export default function Home() {
   const TOTAL_QUESTIONS = 10;
-
+  
   const [questions, setQuestions] = useState([]);
   const [error, setError] = useState('');
   const [selectedOption, setSelectedOption] = useState('');
+  const [justification, setJustification] = useState('');
   const [answers, setAnswers] = useState([]);
-  const [currentLevel, setCurrentLevel] = useState('Beginner');
-  const [unused, setUnused] = useState({ Beginner: [], Intermediate: [], Advanced: [] });
-  const [current, setCurrent] = useState(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [finished, setFinished] = useState(false);
 
   useEffect(() => {
@@ -17,122 +16,87 @@ export default function Home() {
       try {
         const res = await fetch('http://localhost:5000/questions');
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.questions.length === TOTAL_QUESTIONS) {
           setQuestions(data.questions);
-
-          // Group questions by difficulty (normalize cases and trim)
-          const byLevel = { Beginner: [], Intermediate: [], Advanced: [] };
-          data.questions.forEach(q => {
-            const level = (q.DifficultyLevel || '').trim();
-            if (level === 'Beginner') byLevel.Beginner.push(q);
-            else if (level === 'Intermediate') byLevel.Intermediate.push(q);
-            else if (level === 'Advanced') byLevel.Advanced.push(q);
-          });
-          setUnused(byLevel);
-
-          // Start with first available Beginner, or fallback to next levels
-          if (byLevel.Beginner.length) {
-            setCurrent(byLevel.Beginner[0]);
-            byLevel.Beginner.splice(0, 1);
-            setUnused({ ...byLevel });
-            setCurrentLevel('Beginner');
-          } else if (byLevel.Intermediate.length) {
-            setCurrent(byLevel.Intermediate[0]);
-            byLevel.Intermediate.splice(0, 1);
-            setUnused({ ...byLevel });
-            setCurrentLevel('Intermediate');
-          } else if (byLevel.Advanced.length) {
-            setCurrent(byLevel.Advanced[0]);
-            byLevel.Advanced.splice(0, 1);
-            setUnused({ ...byLevel });
-            setCurrentLevel('Advanced');
-          } else {
-            setError('No questions available');
-          }
         } else {
-          setError(data.message || 'Failed to load questions');
+          setError(data.message || 'Failed to load a full set of questions. Please ensure you have at least 10 questions in your database.');
         }
       } catch (err) {
         console.error(err);
-        setError('Error fetching questions');
+        setError('Error fetching questions. Please make sure the backend is running.');
       }
     }
     loadQuestions();
   }, []);
 
-  const totalAnswered = answers.length;
-  const progressPercent = Math.round((totalAnswered / TOTAL_QUESTIONS) * 100);
+  const currentQuestion = questions[currentQuestionIndex];
+  const progressPercent = Math.round((answers.length / TOTAL_QUESTIONS) * 100);
 
-  const handleNext = () => {
-    if (!current || !selectedOption) return;
+  const handleNext = async () => {
+    if (!currentQuestion || !selectedOption || !justification) return;
+    
+    setError(''); // Clear previous errors
+    
+    try {
+      const res = await fetch('http://localhost:5000/verify-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qId: currentQuestion._id,
+          selectedOption,
+          justification,
+        }),
+      });
 
-    const isCorrect = selectedOption === current.Correct_Option;
-
-    setAnswers(prev => [
-      ...prev,
-      {
-        qId: current._id,
-        selected: selectedOption,
-        correct: isCorrect,
-        difficulty: current.DifficultyLevel
+      if (!res.ok) {
+        // If the response is not OK (e.g., 404, 500), throw an error
+        const errorText = await res.text();
+        throw new Error(`Server responded with status: ${res.status}. Response: ${errorText}`);
       }
-    ]);
-    setSelectedOption('');
-
-    // Adaptive difficulty logic
-    let nextLevel = currentLevel;
-    if (isCorrect) {
-      if (currentLevel === 'Beginner') nextLevel = 'Intermediate';
-      else if (currentLevel === 'Intermediate') nextLevel = 'Advanced';
-    } else {
-      if (currentLevel === 'Advanced') nextLevel = 'Intermediate';
-      else if (currentLevel === 'Intermediate') nextLevel = 'Beginner';
-    }
-
-    // Pick next question from nextLevel if available
-    const levelQuestions = unused[nextLevel];
-    if (levelQuestions && levelQuestions.length && totalAnswered + 1 < TOTAL_QUESTIONS) {
-      const nextQ = levelQuestions[0];
-      setCurrent(nextQ);
-      setCurrentLevel(nextLevel);
-      setUnused(prev => ({
+      
+      const data = await res.json();
+      
+      setAnswers(prev => [
         ...prev,
-        [nextLevel]: prev[nextLevel].slice(1)
-      }));
-    } else {
-      // If no questions left at nextLevel, try other levels (priority: Beginner -> Intermediate -> Advanced)
-      const levelsPriority = ['Beginner', 'Intermediate', 'Advanced'];
-      let found = false;
-      for (const lvl of levelsPriority) {
-        if (unused[lvl].length && totalAnswered + 1 < TOTAL_QUESTIONS) {
-          setCurrent(unused[lvl][0]);
-          setCurrentLevel(lvl);
-          setUnused(prev => ({
-            ...prev,
-            [lvl]: prev[lvl].slice(1)
-          }));
-          found = true;
-          break;
-        }
-      }
-      if (!found || totalAnswered + 1 >= TOTAL_QUESTIONS) {
+        {
+          qId: currentQuestion._id,
+          selected: selectedOption,
+          correct: data.isCorrect,
+          difficulty: currentQuestion.DifficultyLevel,
+        },
+      ]);
+      setSelectedOption('');
+      setJustification('');
+      
+      const nextIndex = currentQuestionIndex + 1;
+      if (nextIndex < TOTAL_QUESTIONS) {
+        setCurrentQuestionIndex(nextIndex);
+      } else {
         setFinished(true);
-        setCurrent(null);
       }
+      
+    } catch (err) {
+      console.error('Error verifying answer:', err);
+      setError('Failed to verify answer. Check the console for details.');
     }
   };
 
   if (error) {
-    return <p className="text-red-500 text-center mt-8">{error}</p>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative max-w-2xl text-center" role="alert">
+          <strong className="font-bold">Error!</strong>
+          <span className="block sm:inline ml-2">{error}</span>
+        </div>
+      </div>
+    );
   }
-  if (!current && !finished) {
+  if (questions.length === 0 && !finished) {
     return <p className="text-gray-600 text-center mt-8">Loading questions…</p>;
   }
 
   if (finished) {
     const correctCount = answers.filter(a => a.correct).length;
-
-    // Calculate highest achieved level
     const correctDifficulties = answers.filter(a => a.correct).map(a => a.difficulty);
     let level = 'Beginner';
     if (correctDifficulties.includes('Advanced')) level = 'Advanced';
@@ -144,7 +108,6 @@ export default function Home() {
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-        {/* Score Circle */}
         <div className="flex items-center justify-center mb-6">
           <div className="relative w-32 h-32">
             <svg viewBox="0 0 36 36" className="w-full h-full">
@@ -153,9 +116,7 @@ export default function Home() {
                 strokeWidth="4"
                 stroke="currentColor"
                 fill="none"
-                d="M18 2.0845
-                   a 15.9155 15.9155 0 0 1 0 31.831
-                   a 15.9155 15.9155 0 0 1 0 -31.831"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
               />
               <path
                 className="text-blue-500"
@@ -164,9 +125,7 @@ export default function Home() {
                 fill="none"
                 strokeDasharray={`${(correctCount / TOTAL_QUESTIONS) * 100}, 100`}
                 strokeLinecap="round"
-                d="M18 2.0845
-                   a 15.9155 15.9155 0 0 1 0 31.831
-                   a 15.9155 15.9155 0 0 1 0 -31.831"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
@@ -195,7 +154,6 @@ export default function Home() {
                   const text = q[optKey];
                   const isCorrect = optKey === q.Correct_Option;
                   const isSelected = a.selected === optKey;
-                  // Highlight correct answer and user selected colored differently
                   const bgClass = isCorrect
                     ? 'bg-blue-100 text-blue-700'
                     : isSelected
@@ -222,29 +180,23 @@ export default function Home() {
     );
   }
 
-  // Quiz in progress
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Progress Bar */}
       <div className="w-full bg-gray-200 h-2">
         <div
           className="bg-blue-500 h-2 transition-all duration-300"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
-
       <p className="text-sm text-gray-600 text-center mt-2">
-        {totalAnswered} / {TOTAL_QUESTIONS} Questions
+        {answers.length} / {TOTAL_QUESTIONS} Questions
       </p>
-
-      {/* Question Card */}
       <div className="flex-1 flex items-start justify-center pt-8 px-4">
         <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
           <h2 className="text-xl font-semibold mb-4">
-            Question {totalAnswered + 1} of {TOTAL_QUESTIONS}
+            Question {answers.length + 1} of {TOTAL_QUESTIONS}
           </h2>
-          <p className="mb-6 text-gray-800">{current.Question}</p>
-
+          <p className="mb-6 text-gray-800">{currentQuestion.Question}</p>
           <form>
             {['Option1', 'Option2', 'Option3', 'Option4'].map(optKey => (
               <label
@@ -263,15 +215,25 @@ export default function Home() {
                   onChange={e => setSelectedOption(e.target.value)}
                   className="mr-3 form-radio text-blue-500"
                 />
-                {current[optKey]}
+                {currentQuestion[optKey]}
               </label>
             ))}
           </form>
-
+          <div className="mt-4">
+            <label className="block text-gray-700 font-semibold mb-2">Justify your answer:</label>
+            <textarea
+              value={justification}
+              onChange={(e) => setJustification(e.target.value)}
+              rows="4"
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+              placeholder="Explain why you chose this option..."
+              required
+            ></textarea>
+          </div>
           <div className="flex justify-end">
             <button
               onClick={handleNext}
-              disabled={!selectedOption}
+              disabled={!selectedOption || !justification}
               className="mt-4 bg-blue-500 text-white py-2 px-5 rounded-lg hover:bg-blue-600 disabled:opacity-50"
             >
               Next
