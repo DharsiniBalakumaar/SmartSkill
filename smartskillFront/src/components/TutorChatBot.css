@@ -1,0 +1,166 @@
+/* File: smartskillFront/src/components/TutorChatBot.css */
+
+/* --- Floating Button Styles --- */
+.floating-chat-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #3b82f6;
+    /* Tailwind blue-500 */
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    /* Ensure it stays above other content */
+    transition: background-color 0.3s ease;
+}
+
+.floating-chat-button:hover {
+    background-color: #2563eb;
+    /* Tailwind blue-600 */
+}
+
+/* Optional: change icon appearance when chat is open */
+.floating-chat-button.is-open {
+    transform: scale(0.9);
+}
+
+
+/* --- Chat Window Styles --- */
+.chat-window-container {
+    position: fixed;
+    bottom: 100px;
+    /* Position above the button */
+    right: 20px;
+    width: 350px;
+    /* Standard chat window size */
+    height: 450px;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    /* Tailwind gray-200 */
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    z-index: 999;
+    overflow: hidden;
+}
+
+.chat-header {
+    padding: 10px 15px;
+    background-color: #1f2937;
+    /* Tailwind gray-800 */
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: #f9fafb;
+    /* Light gray background */
+}
+
+.message {
+    display: flex;
+    margin-bottom: 10px;
+}
+
+.message.user {
+    justify-content: flex-end;
+}
+
+.message.tutor {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 18px;
+    line-height: 1.4;
+    font-size: 0.95rem;
+    word-wrap: break-word;
+}
+
+.message.user .message-bubble {
+    background-color: #3b82f6;
+    /* Blue for user */
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message.tutor .message-bubble {
+    background-color: #e5e7eb;
+    /* Light gray for tutor */
+    color: #1f2937;
+    border-bottom-left-radius: 4px;
+}
+
+.difficulty-tag {
+    font-size: 0.75rem;
+    margin-bottom: 5px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background-color: #fef08a;
+    /* Tailwind yellow-200 */
+    color: #92400e;
+    /* Tailwind amber-800 */
+    font-weight: normal;
+}
+
+.chat-input-form {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #e5e7eb;
+    background-color: white;
+}
+
+.chat-input-form input {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-right: 10px;
+}
+
+.chat-input-form button {
+    background-color: #10b981;
+    /* Tailwind emerald-500 */
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.chat-input-form button:hover:not(:disabled) {
+    background-color: #059669;
+    /* Tailwind emerald-600 */
+}
+
+.chat-input-form button:disabled {
+    background-color: #a7f3d0;
+    /* Light emerald for disabled */
+    cursor: not-allowed;
+}

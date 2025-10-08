@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@google/genai": "^1.22.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.6"
   }
