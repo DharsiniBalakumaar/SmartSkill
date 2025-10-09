@@ -8,30 +8,29 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const path = require('path');
-const { spawn } = require('child_process'); // For Python ML Integration
+const { spawn } = require('child_process'); 
+
 
 const Question = require('./models/Questions');
 const User = require('./models/User');
 
 // --- AI/Keyword Imports ---
 const generateKeywords = require('./utils/keywordGenerator'); 
-const generateOfficialContent = require('./utils/geminiContentGenerator'); 
-// 📢 CHANGE: Replaced GoogleGenAI with OpenAI for OpenRouter compatibility
-const { OpenAI } = require('openai'); 
+//const generateOfficialContent = require('./utils/geminiContentGenerator'); 
+//const { OpenAI } = require('openai'); 
 // --------------------------
 
-dotenv.config(); // Load all environment variables
+dotenv.config(); 
 
 // --- DEBUG: Check Environment Variable ---
 console.log('OpenRouter Key Loaded?', !!process.env.OPENROUTER_API_KEY); 
 // -----------------------------------------
 
 // ------------------ AI Initialization (OpenRouter Setup) ------------------
-// Initialize the AI client for OpenRouter using the OpenAI SDK structure
-const ai = new OpenAI({ 
-    apiKey: process.env.OPENROUTER_API_KEY, 
-    baseURL: 'https://openrouter.ai/api/v1', // 👈 OpenRouter's endpoint
-});
+//const ai = new OpenAI({ 
+  //  apiKey: process.env.OPENROUTER_API_KEY, 
+    //baseURL: 'https://openrouter.ai/api/v1', 
+//});
 // --------------------------------------------------------------------------
 
 const app = express();
@@ -50,51 +49,49 @@ mongoose.connection.on('error', err => console.error('❌ MongoDB error:', err))
 mongoose.connection.once('open', () => console.log('📡 MongoDB connection open'));
 
 // ------------------ Python ML Utility Function (Unchanged) ------------------
-function runPythonPrediction(question) {
-    return new Promise((resolve, reject) => {
-        // NOTE: You may need to change 'python' to 'python3' depending on your OS setup.
-        const pythonProcess = spawn('python', [
-            path.join(__dirname, 'predict_difficulty.py'), 
-            question
-        ]);
-        
-        let pythonOutput = '';
-        let pythonError = '';
+async function runPythonPrediction(question) {
+    return new Promise((resolve) => {
+        const pythonProcess = spawn('python', [
+            path.join(__dirname, 'predict_difficulty.py'),
+            question
+        ]);
 
-        pythonProcess.stdout.on('data', (data) => {
-            pythonOutput += data.toString();
-        });
-        pythonProcess.stderr.on('data', (data) => {
-            pythonError += data.toString();
-        });
+        let pythonOutput = '';
+        pythonProcess.stdout.on('data', (data) => {
+            pythonOutput += data.toString();
+        });
 
-        pythonProcess.on('close', (code) => {
-            if (code !== 0) {
-                console.error(`❌ Python script exited with code ${code}. Stderr: ${pythonError}`);
-                // Resolve with error state so the main Node process doesn't crash
-                return resolve({ success: false, difficulty: 'Error', error: pythonError });
-            }
-            
-            try {
-                const result = JSON.parse(pythonOutput);
-                resolve(result);
-            } catch (parseErr) {
-                console.error('❌ Failed to parse Python output:', pythonOutput);
-                resolve({ success: false, difficulty: 'Error', error: 'Invalid response from ML service.' });
-            }
-        });
+        // Handle stderr if needed (logging only)
+        pythonProcess.stderr.on('data', (data) => {
+            console.error('Python stderr:', data.toString());
+        });
 
-        pythonProcess.on('error', (err) => {
-            console.error('Python Spawn Error:', err);
-            reject({ success: false, difficulty: 'Error', error: err.message });
-        });
-    });
+        pythonProcess.on('close', (code) => {
+            try {
+                const result = JSON.parse(pythonOutput);
+                if (result && result.success && result.difficulty) {
+                    resolve(result.difficulty);
+                } else {
+                    resolve('Advanced'); // fallback
+                }
+            } catch (err) {
+                console.error('Python result parse error:', err, pythonOutput);
+                resolve('Advanced');
+            }
+        });
+
+        pythonProcess.on('error', (err) => {
+            console.error('Python Spawn Error:', err);
+            resolve('Advanced');
+        });
+    });
 }
+
 // ----------------------------------------------------------------
 
-// ------------------ Authentication Routes (Unchanged) ------------------
+// ------------------ Authentication Routes ------------------
 
-// ✅ Registration Route
+// ✅ Registration Route (Unchanged)
 app.post('/register', async (req, res) => {
   console.log('📝 Register endpoint hit');
   const { username, email, password } = req.body;
@@ -113,7 +110,7 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// ✅ Login Route
+// ✅ Login Route (FIXED to return token and username)
 app.post('/login', async (req, res) => {
   console.log('👤 Login endpoint hit');
   const { email, password } = req.body;
@@ -126,14 +123,24 @@ app.post('/login', async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ success: false, message: 'Invalid email or password' });
     }
-    res.json({ success: true, message: 'Login successful' });
+    
+    // --- 📢 FIX APPLIED HERE ---
+    const mockToken = crypto.randomBytes(16).toString('hex'); // Mock token (replace with JWT)
+    res.json({ 
+        success: true, 
+        message: 'Login successful',
+        token: mockToken, // Provide a token
+        username: user.username // Provide the username
+    });
+    // -------------------------
+    
   } catch (err) {
     console.error('❌ Login error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// ✅ Get 10 random or fixed questions
+// ✅ Get 10 random or fixed questions (Unchanged)
 app.get('/questions', async (req, res) => {
   console.log('❓ Questions endpoint hit');
   try {
@@ -145,317 +152,143 @@ app.get('/questions', async (req, res) => {
   }
 });
 
-// ✅ Forgot Password Route (send reset link)
-app.post('/forgot-password', async (req, res) => {
-  console.log('🔒 Forgot Password endpoint hit');
-  const { email } = req.body;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.json({ success: false, message: 'User not found' });
-    }
-    
-    // Generate token and expiry
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = Date.now() + 3600000; // 1 hour expiry
-    await user.save();
-    
-    // Setup Nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      tls: { rejectUnauthorized: false }
-    });
-    await transporter.verify();
-    console.log("✅ Email server ready");
-    
-    // Create the reset link (adjust host/port as necessary for your frontend)
-    const resetLink = `http://localhost:5173/reset/${resetToken}`;
-    
-    const info = await transporter.sendMail({
-      from: `"SmartSkill Support" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: 'Password Reset Request',
-      html: `<p>Click this link to reset your password:</p>
-              <a href="${resetLink}">${resetLink}</a>
-              <p>This link will expire in 1 hour.</p>`
-    });
-    console.log("✅ Email sent:", info.messageId);
-    
-    res.json({ success: true, message: 'Reset link sent to email' });
-  } catch (err) {
-    console.error("❌ Forgot password error:", err.message);
-    res.status(500).json({ success: false, message: 'Error sending reset email: ' + err.message });
-  }
-});
 
-// ✅ Reset Password Route (with token)
-app.post('/reset-password/:token', async (req, res) => {
-  console.log('🔄 Reset Password endpoint hit');
-  const { token } = req.params;
-  const { newPassword } = req.body;
-  try {
-    // Find user by token and ensure token has not expired
-    const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() }
-    });
-    
-    if (!user) {
-      return res.json({ success: false, message: 'Invalid or expired token' });
-    }
-    
-    // Update password and clear token fields
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    await user.save();
-    
-    res.json({ success: true, message: 'Password reset successful' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// ----------------------------------------------------
-// ✅ NEW: AI PYTHON TUTOR CHATBOT ROUTE (UPDATED FOR OPENROUTER)
-// ----------------------------------------------------
-app.post('/chat/tutor', async (req, res) => {
-    console.log('💬 Chatbot Tutor endpoint hit');
-    const { userQuery, history } = req.body; 
-
-    if (!userQuery) {
-        return res.status(400).json({ success: false, message: 'Query is required.' });
-    }
-
-    try {
-        // 1. Run ML Prediction to get difficulty level
-        const predictionResult = await runPythonPrediction(userQuery);
-        const predictedLevel = predictionResult.success ? predictionResult.difficulty : 'Unknown';
-        
-        // 2. Define the LLM's persona and objective
-        const systemPromptText = `
-            You are 'SmartSkill Tutor', an encouraging and expert Python programming assistant. 
-            Your primary function is to act as a supportive mentor. 
-            Your task is to evaluate the user's query, provide a detailed and helpful explanation, and confirm the topic's difficulty level.
-            
-            The predicted difficulty level for the user's question is: **${predictedLevel}**.
-            
-            Format your response clearly:
-            - Start with the detailed explanation and supporting code examples where necessary.
-            - Conclude with the difficulty assessment based on the prediction.
-        `;
-
-        // 3. Assemble the messages array: [System Message] + [History from Frontend]
-        const messages = [
-            { role: 'system', content: systemPromptText }, // System message first
-            ...history.map(msg => ({ 
-                role: msg.role,
-                content: msg.parts[0].text // Extract text from the parts array
-            }))
-        ];
-
-
-        // 4. Call OpenRouter API using the OpenAI SDK's chat completions method
-        const openRouterResponse = await ai.chat.completions.create({
-            model: 'openai/gpt-3.5-turbo', // Chosen model on OpenRouter
-            messages: messages,
-        });
-
-        // 5. Extract the response text
-        const tutorResponse = openRouterResponse.choices[0].message.content;
-
-        res.json({
-            success: true,
-            tutorResponse,
-            predictedLevel
-        });
-
-    } catch (err) {
-        console.error('❌ Chatbot API error:', err);
-        const status = err.status || 500; 
-        const message = err.message || 'Error processing tutor request. Check OpenRouter API key/funds.';
-
-        res.status(status).json({ success: false, message: `Server Error: ${message}` });
-    }
-});
-
-
-// ------------------ Other Routes (Unchanged) ------------------
-
-// ✅ ML Prediction Endpoint (Exposed)
-app.post('/predict-difficulty', async (req, res) => {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ success: false, message: 'Question text is required.' });
-
-    try {
-        const result = await runPythonPrediction(question);
-        if (result.success) {
-            res.json({ success: true, difficulty: result.difficulty });
-        } else {
-            res.status(500).json(result);
-        }
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'Could not execute prediction system.' });
-    }
-});
-
-
-// ✅ AI-POWERED Route: GENERATE JUSTIFICATION & KEYWORDS (One-Time Bulk Run)
-app.post('/questions/generate-content-ai', async (req, res) => {
-  console.log('✨ AI Content Generation endpoint hit');
-  
-  try {
-    // Query finds documents where Justification_Text is missing or explicitly null/empty
-    const questions = await Question.find({ 
-        $or: [
-            { Justification_Text: { $exists: false } }, 
-            { Justification_Text: null },                
-            { Justification_Text: "" }                  
-        ]
-    }).limit(50); 
-
-    if (questions.length === 0) {
-        return res.json({ success: true, message: 'No questions found needing justification/keywords. Run complete.' });
-    }
-
-    let generatedCount = 0;
-    const bulkOps = [];
-    
-    for (const q of questions) {
-        // Pass the initialized 'ai' client to the utility function
-        // NOTE: This function currently uses the old Gemini SDK implementation
-        // If this route is used, it will fail unless generateOfficialContent is updated.
-        const { justification, keywords } = await generateOfficialContent(q, ai); 
-
-        if (justification) { 
-            generatedCount++;
-            
-            bulkOps.push({
-                updateOne: {
-                    filter: { _id: q._id },
-                    update: { 
-                        $set: { 
-                            Justification_Text: justification,
-                            keywords: keywords 
-                        } 
-                    }
-                }
-            });
-        }
-    }
-
-    if (bulkOps.length > 0) {
-      await Question.bulkWrite(bulkOps);
-    }
-
-    res.json({ 
-      success: true, 
-      message: `${generatedCount} questions were processed, and Justification/Keywords were generated by AI. Total processed: ${questions.length}`,
-      count: generatedCount 
-    });
-  } catch (err) {
-    console.error('❌ Error generating AI content:', err);
-    res.status(500).json({ success: false, message: 'Server error during AI content generation: ' + err.message });
-  }
-});
-
-
-// ✅ MODIFIED Verify Answer and Justification Route (Real-Time Grading)
-const MIN_KEYWORD_OVERLAP_PERCENTAGE = 0.4; 
-
+// 🚀 CRITICAL FIX: /verify-answer ROUTE - NOW COMPLETELY AVOIDS BUGGY AI CALL
 app.post('/verify-answer', async (req, res) => {
-  console.log('✅ Verify Answer endpoint hit');
-  const { qId, selectedOption, justification } = req.body; 
-  
-  try {
-    const question = await Question.findById(qId);
-    
-    if (!question) {
-      return res.status(404).json({ success: false, message: 'Question not found' });
-    }
-    
-    const isCorrect = selectedOption === question.Correct_Option;
-    let justificationScore = 0;
-    let score = 0; 
+  console.log('✅ Verify Answer endpoint hit (Local Processing)');
+  const { qId, selectedOption, justification } = req.body;
 
-    if (isCorrect) {
-        score = 1; // Base point for correct answer
+  if (!qId || !selectedOption) {
+    return res.status(400).json({ success: false, message: 'Missing question ID or selection.' });
+  }
 
-        // Proceed to check justification only if official keywords exist
-        if (justification && question.keywords && question.keywords.length > 0) {
-          // 1. Generate keywords from the user's justification (using local utility)
-          const userKeywords = generateKeywords(justification);
-          
-          // 2. Find the intersection (overlap) between official and user keywords
-          const officialKeywordsSet = new Set(question.keywords);
-          let overlapCount = 0;
-          for (const keyword of userKeywords) {
-            if (officialKeywordsSet.has(keyword)) {
-              overlapCount++;
-            }
-          }
+  try {
+    const question = await Question.findById(qId).lean();
+    if (!question) {
+      return res.status(404).json({ success: false, message: 'Question not found.' });
+    }
 
-          // 3. Calculate overlap percentage against the required keywords
-          const overlapPercentage = overlapCount / question.keywords.length;
+    const isCorrect = String(question.Correct_Option) === String(selectedOption);
+    const officialJustification = question.Justification_Text || 'Official justification is missing from the database.';
+    const requiredKeywords = Array.isArray(question.keywords) && question.keywords.length
+      ? question.keywords.map(k => String(k).toLowerCase().trim())
+      : ['concept'];
 
-          // 4. Assign justification score based on overlap
-          if (overlapPercentage >= MIN_KEYWORD_OVERLAP_PERCENTAGE) {
-            justificationScore = 1; 
-            score = 2; // Full score (Correct + Justification)
-          } else {
-            justificationScore = 0;
-            // score remains 1 (Correct Answer Only)
-          }
-        }
-    } else {
-        score = 0; // Incorrect answer
-    }
+    // 1) Extract keywords from user's justification using local extractor
+    const userKeywords = Array.isArray(justification) ? justification : generateKeywords(justification || '');
 
-    // Response structure
-    res.json({ 
-      success: true, 
-      isCorrect: isCorrect,
-      justificationScore: justificationScore,
-      totalScore: score,
-      message: isCorrect ? 
-        (justificationScore === 1 ? 'Correct answer with excellent justification!' : 'Correct answer, but justification was weak.') : 
-        'Incorrect answer.',
-      // Optional feedback for client side
-      officialJustification: question.Justification_Text,
-      requiredKeywords: question.keywords
-    });
-  } catch (err) {
-    console.error('❌ Error verifying answer:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    // normalized user keywords
+    const normalizedUserKeywords = userKeywords.map(k => k.toLowerCase().trim());
+    const requiredSet = new Set(requiredKeywords);
+
+    // matched keywords (intersection)
+    const matchedKeywords = normalizedUserKeywords.filter(k => requiredSet.has(k));
+
+    // scoring: base point for correctness, +1 for justification match
+    let justificationScore = 0;
+    let totalScore = isCorrect ? 1 : 0;
+    let justificationMessage = isCorrect ? 'Answer is correct.' : 'Answer is incorrect.';
+
+    if (isCorrect) {
+    // Give full credit if at least half (rounded up) of the required keywords are present
+    const minKeywordsRequired = Math.ceil(requiredKeywords.length / 2);
+    if (matchedKeywords.length >= minKeywordsRequired) {
+        justificationScore = 1;
+        totalScore += 1;
+        justificationMessage = 'Answer is correct and justification is highly relevant!';
+    } else if (matchedKeywords.length > 0) {
+        justificationScore = 0; // or set 0.5 if you want half point for some matches
+        justificationMessage = `Answer is correct, but only some relevant keywords were mentioned (${matchedKeywords.length}/${requiredKeywords.length}).`;
+    } else {
+        justificationMessage = 'Answer is correct, but the justification misses required keywords.';
+    }
+    }
+
+
+    return res.json({
+      success: true,
+      isCorrect,
+      justificationScore,
+      totalScore,
+      message: justificationMessage,
+      matchedKeywords,
+      requiredKeywords: question.keywords || requiredKeywords,
+      officialJustification,
+    });
+  } catch (err) {
+    console.error('❌ Error verifying answer:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error during verification.' });
+  }
 });
 
 
-// ------------------ Optional CSV/XLSX Upload ------------------
-/* (Unchanged)
-// Uncomment and install 'xlsx' if you need to bulk-import questions
-const xlsx = require('xlsx');
-async function uploadCSV() {
-  try {
-    const filePath = path.join(__dirname, 'questions.xlsx');
-    const workbook = xlsx.readFile(filePath);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = xlsx.utils.sheet_to_json(sheet);
-    // Note: Ensure your CSV/XLSX column headers match your Mongoose schema exactly!
-    await Question.insertMany(jsonData);
-    console.log('✅ Data imported successfully');
-  } catch (err) {
-    console.error('❌ Error importing XLSX data:', err);
-  }
-}
-*/
+
+// ✅ Tutor Chatbot Route (Temporary Local Mock)
+app.post("/chat/tutor", async (req, res) => {
+    console.log("💬 /chat/tutor hit");
+
+    const { userQuery, history } = req.body;
+    if (!userQuery) {
+        return res.status(400).json({ success: false, message: "Missing user query" });
+    }
+
+    try {
+        // UPDATED: Use the ML-based model, not heuristic!
+        const predictedLevel = await runPythonPrediction(userQuery);
+
+        // Compose messages for OpenRouter
+        const messages = [
+            { role: "system", content: "You are an intelligent tutor that explains coding, logic, and concepts clearly." },
+            ...(Array.isArray(history) ? history : []),
+        ];
+        // Optionally add current userQuery if not included
+        if (!messages.length || messages[messages.length - 1].content !== userQuery) {
+            messages.push({ role: "user", content: userQuery });
+        }
+
+        const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: "openai/gpt-3.5-turbo",
+                messages: messages,
+            }),
+        });
+
+        // Check if OpenRouter gave a meaningful response
+        if (!openRouterResponse.ok) {
+            let errorText = "Unknown error";
+            try {
+                const errorData = await openRouterResponse.json();
+                errorText = errorData?.error?.message || JSON.stringify(errorData);
+            } catch (e) { }
+            console.error("OpenRouter API error:", errorText);
+            return res.status(500).json({
+                success: false,
+                message: `OpenRouter API error: ${errorText}`,
+            });
+        }
+
+        const data = await openRouterResponse.json();
+
+        const tutorResponse =
+            data?.choices?.[0]?.message?.content ||
+            "I’m sorry, I couldn’t generate a response at the moment.";
+
+        return res.json({
+            success: true,
+            predictedLevel,
+            tutorResponse,
+        });
+
+    } catch (err) {
+        console.error("❌ ChatTutor Error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
 
 // ------------------ Start Server (Unchanged) ------------------
 const PORT = process.env.PORT || 5000;

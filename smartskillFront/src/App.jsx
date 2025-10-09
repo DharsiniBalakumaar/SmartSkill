@@ -22,7 +22,7 @@ function Layout() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Show Header only on landing page */}
-      {location.pathname === "/" && <Header />}
+     {/*location.pathname === "/" && <Header />*/}
 
       <main className="flex-1">
         <Routes>

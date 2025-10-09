@@ -7,7 +7,7 @@ export default function Footer() {
         <div className="flex gap-6 justify-center">
           <a className="text-[#49739c]" href="#">Privacy Policy</a>
           <a className="text-[#49739c]" href="#">Terms of Service</a>
-          <a className="text-[#49739c]" href="#">Contact Us</a>
+          <a className="text-[#49739c]" href="/contact">Contact Us</a>
         </div>
         <p className="text-[#49739c] text-sm">
           ©2025 SmartSkill. All rights reserved.
