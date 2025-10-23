@@ -14,6 +14,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Courses from "./pages/Courses";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
+import Dashboard from "./pages/Dashboard";
 
 
 function Layout() {
@@ -35,6 +36,7 @@ function Layout() {
           <Route path="/courses" element={<Courses />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
+          <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
 

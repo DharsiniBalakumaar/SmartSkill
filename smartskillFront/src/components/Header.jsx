@@ -5,9 +5,6 @@ export default function Header() {
     const navigate = useNavigate();
     const location = useLocation();
     const [userName, setUserName] = useState(null); 
-    const [showDashboard, setShowDashboard] = useState(false);
-    const [progressData, setProgressData] = useState([]);
-    const [loadingProgress, setLoadingProgress] = useState(false);
 
     useEffect(() => {
         const storedUserName = localStorage.getItem('userName');
@@ -21,25 +18,10 @@ export default function Header() {
         navigate("/"); 
     };
 
-    // Show dashboard when username is clicked
-    const handleUsernameClick = async () => {
-        setShowDashboard(true);
-        setLoadingProgress(true);
-        const token = localStorage.getItem('authToken');
-        const res = await fetch(`http://localhost:5000/dashboard/progress?token=${token}`);
-        const data = await res.json();
-        setLoadingProgress(false);
-        if(data.success && data.progress) {
-            setProgressData(data.progress.reverse()); // Show most recent first
-        } else {
-            setProgressData([]);
-        }
-    };
-
-    // Close the dashboard display
-    const handleCloseDashboard = () => {
-        setShowDashboard(false);
-        setProgressData([]);
+    // FIX: Instead of opening a modal and fetching data in the Header, 
+    // we navigate directly to the Dashboard route.
+    const handleDashboardClick = () => {
+        navigate('/dashboard');
     };
 
     let navLinks = [
@@ -49,7 +31,10 @@ export default function Header() {
         { to: "/contact", label: "Contact" },
     ];
     if (userName) {
+        // Add Quiz link right after Landing
         navLinks.splice(1, 0, { to: "/home", label: "Quiz" });
+        // Add Dashboard link, which is now mandatory for navigation
+        navLinks.splice(2, 0, { to: "/dashboard", label: "Dashboard" }); 
     }
 
     return (
@@ -85,11 +70,11 @@ export default function Header() {
 
                 {userName ? (
                     <div className="flex items-center gap-4">
-                        {/* Username is clickable, shows dashboard */}
+                        {/* Now use handleDashboardClick to navigate, and keep the user name clickable */}
                         <span 
                             className="text-blue-600 font-semibold cursor-pointer underline" 
-                            onClick={handleUsernameClick}
-                            title="Show Dashboard"
+                            onClick={handleDashboardClick}
+                            title="Go to Dashboard"
                         >
                             {userName.split(' ')[0]}
                         </span>
@@ -118,78 +103,6 @@ export default function Header() {
                     </Link>
                 )}
             </div>
-
-            {/* Dashboard Modal */}
-            {showDashboard && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-                    <div className="bg-white rounded-lg shadow-2xl p-8 max-w-3xl w-full relative">
-                        <button 
-                            className="absolute top-2 right-2 text-xl font-bold text-gray-700 hover:text-red-700"
-                            onClick={handleCloseDashboard}
-                        >
-                            &times;
-                        </button>
-                        <h2 className="text-xl font-bold text-blue-700 mb-4">Your Quiz Progress</h2>
-                        {loadingProgress ? (
-                            <div className="text-center text-gray-600 my-8">Loading dashboard...</div>
-                        ) : (
-                            <>
-                            {(!progressData || progressData.length === 0) ? (
-                                <div className="text-center text-red-600 my-6">No quiz history found yet.</div>
-                            ) : (
-                                <div className="max-h-[50vh] overflow-y-auto space-y-6">
-                                    {progressData.map((prog, idx) => (
-                                        <div key={idx} className="border rounded-lg p-4 bg-gray-50 shadow">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-gray-700 text-lg font-semibold">
-                                                    {new Date(prog.quizDate).toLocaleString()}
-                                                </span>
-                                                <span className="font-semibold text-blue-600">{prog.recommendedLevel}</span>
-                                            </div>
-                                            <div className="mb-2">
-                                                <span className="text-green-700 font-bold">{prog.totalScore} / {prog.totalPossibleScore}</span>
-                                                <span className="text-gray-600 text-sm ml-2">({prog.scorePercentage.toFixed(1)}%)</span>
-                                            </div>
-                                            <div className="mb-2">
-                                                <span className="block font-medium text-gray-700">{prog.recommendedCourse?.name}</span>
-                                                <span className="block text-gray-600 text-xs mb-1">{prog.recommendedCourse?.description}</span>
-                                                <div className="flex flex-wrap gap-3">
-                                                    {prog.recommendedCourse?.links?.map((res, rIdx) => (
-                                                        <a
-                                                            key={rIdx}
-                                                            href={res.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-300 rounded text-blue-700 font-medium border"
-                                                        >
-                                                            {res.title}
-                                                        </a>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <details>
-                                                <summary className="cursor-pointer text-sm text-gray-700 mt-2">View answers</summary>
-                                                <div className="mt-2 space-y-2">
-                                                    {prog.answers.map((ans, aIdx) => (
-                                                        <div key={aIdx} className="border rounded p-2 bg-white">
-                                                            <div className="text-gray-800 font-semibold">{ans.Question}</div>
-                                                            <div className="text-gray-600 text-xs">
-                                                                Answer: <span className="font-bold">{ans.selected}</span> &nbsp;
-                                                                | Score: <span className={ans.totalScore > 0 ? "text-green-600" : "text-red-600"}>{ans.totalScore}</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </details>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
         </header>
     );
 }

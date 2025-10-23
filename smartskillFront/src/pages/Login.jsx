@@ -34,7 +34,7 @@ export default function Login() {
         localStorage.setItem("userName", data.username || form.email); 
         
         // Redirect to landing page (/)
-        setTimeout(() => navigate("/home"), 1000);
+        setTimeout(() => navigate("/"), 1000);
       } else {
         setMessage("❌ " + data.message);
       }
