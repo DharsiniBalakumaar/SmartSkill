@@ -97,6 +97,7 @@ const ScoreChart = ({ answers, totalQuestions }) => {
             <p className="text-center text-sm text-gray-700 mt-2 font-semibold">
                 Current Score: {dataPoints.length > 0 ? dataPoints[dataPoints.length - 1].score.toFixed(1) : '0.0'} / {answers.length * 2} Pts
             </p>
+            
         </div>
     );
 };
@@ -416,8 +417,9 @@ export default function Home() {
             <div className="w-full bg-gray-200 h-2">
                 <div className="bg-blue-500 h-2 transition-all duration-300" style={{ width: `${progressPercent}%` }} />
             </div>
+            {/* 🐛 FIX APPLIED HERE: Changed {answers.length} to {answers.length + 1} */}
             <p className="text-sm text-gray-600 text-center mt-2">
-                {answers.length} / {TOTAL_QUESTIONS} Questions (Current Level: <span className="font-bold">{skillLevel}</span>)
+                {answers.length + 1} / {TOTAL_QUESTIONS} Questions (Current Level: <span className="font-bold">{skillLevel}</span>)
             </p>
             <div className="flex-1 flex flex-col md:flex-row items-start justify-center pt-8 px-4 gap-8">
                 <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl md:w-2/3 lg:w-1/2">
